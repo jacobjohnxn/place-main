@@ -24,6 +24,8 @@ class LoginApp extends StatelessWidget {
   }
 }
 
+
+
 class LoginPage extends StatefulWidget {
   @override
   _LoginPageState createState() => _LoginPageState();
@@ -35,37 +37,31 @@ class _LoginPageState extends State<LoginPage> {
 
   String _loginMessage = '';
 
-Future<void> _login() async {
-  try {
-    final String username = _usernameController.text.trim();
-    final String password = _passwordController.text.trim();
+  Future<void> _login() async {
+    try {
+      final String username = _usernameController.text.trim();
+      final String password = _passwordController.text.trim();
 
-    // Sign in with email and password
-    UserCredential userCredential =
-        await FirebaseAuth.instance.signInWithEmailAndPassword(
-      email: username,
-      password: password,
-    );
+      UserCredential userCredential =
+          await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: username,
+        password: password,
+      );
 
-    // Reset login message
-    setState(() {
-      _loginMessage = 'Login successful';
-    });
+      setState(() {
+        _loginMessage = 'Login successful';
+      });
 
-    // Navigate to the pred.dart file after successful login
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => PredictionPage()), // Replace PredPage with the appropriate class name for your pred.dart file
-    );
-
-  } catch (e) {
-    // Handle login errors
-    setState(() {
-      _loginMessage = 'Login failed: $e';
-    });
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => PredictionPage()),
+      );
+    } catch (e) {
+      setState(() {
+        _loginMessage = 'Login failed: $e';
+      });
+    }
   }
-}
-
 
   @override
   Widget build(BuildContext context) {
@@ -73,7 +69,8 @@ Future<void> _login() async {
       appBar: AppBar(
         title: Text('Login Page'),
       ),
-      body: Padding(
+      body: Container(
+        color: Colors.white70, // Set off-white background color
         padding: const EdgeInsets.all(16.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -81,8 +78,10 @@ Future<void> _login() async {
             TextField(
               controller: _usernameController,
               decoration: InputDecoration(
-                hintText: 'Enter your username',
-                labelText: 'Username',
+                hintText: 'Enter your email',
+                labelText: 'Email',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.email),
               ),
             ),
             SizedBox(height: 20),
@@ -92,12 +91,17 @@ Future<void> _login() async {
               decoration: InputDecoration(
                 hintText: 'Enter your password',
                 labelText: 'Password',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.lock),
               ),
             ),
             SizedBox(height: 30),
             ElevatedButton(
               onPressed: _login,
               child: Text('Login'),
+              style: ElevatedButton.styleFrom(
+                padding: EdgeInsets.symmetric(vertical: 16.0),
+              ),
             ),
             SizedBox(height: 10),
             Text(

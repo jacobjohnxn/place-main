@@ -22,122 +22,111 @@ class _PredictionPageState extends State<PredictionPage> {
   List<String> _courses = [];
   double _totalScore = 0.0;
 
+  bool _nameError = false;
+  bool _collegeError = false;
+  bool _cgpaError = false;
+  bool _semesterError = false;
+
   @override
   void initState() {
     super.initState();
-    // Load user data when the page is initialized
     _loadUserData();
   }
 
   Future<void> _loadUserData() async {
-  // Retrieve user data from Firestore
-  User? user = _auth.currentUser;
-  if (user != null) {
-    try {
-      DocumentSnapshot userData = await _firestore.collection('users').doc(user.uid).get().timeout(Duration(seconds: 5)); // Set a timeout of 5 seconds
-      if (userData.exists) {
-        setState(() {
-          _nameController.text = userData['name'] ?? '';
-          _collegeController.text = userData['college'] ?? '';
-          _cgpaController.text = userData['cgpa']?.toString() ?? '';
-          _semesterController.text = userData['semester']?.toString() ?? '';
-          _courses = List<String>.from(userData['courses'] ?? []);
-          _calculateTotalScore();
+    User? user = _auth.currentUser;
+    if (user != null) {
+      try {
+        DocumentSnapshot userData = await _firestore
+            .collection('users')
+            .doc(user.uid)
+            .get()
+            .timeout(Duration(seconds: 5));
+        if (userData.exists) {
+          setState(() {
+            _nameController.text = userData['name'] ?? '';
+            _collegeController.text = userData['college'] ?? '';
+            _cgpaController.text = userData['cgpa']?.toString() ?? '';
+            _semesterController.text =
+                userData['semester']?.toString() ?? '';
+            _courses = List<String>.from(userData['courses'] ?? []);
+            _calculateTotalScore();
+          });
+        } else {
+          await _saveUserData();
+        }
+      } catch (e) {
+        print('Error loading user data: $e');
+      }
+    }
+  }
+
+  Future<void> _saveUserData() async {
+    User? user = _auth.currentUser;
+    if (user != null) {
+      String name = _nameController.text.trim();
+      String college = _collegeController.text.trim();
+      double cgpa = double.tryParse(_cgpaController.text.trim()) ?? 0.0;
+      int semester = int.tryParse(_semesterController.text.trim()) ?? 0;
+
+      if (name.isNotEmpty && college.isNotEmpty) {
+        await _firestore.collection('users').doc(user.uid).set({
+          'name': name,
+          'college': college,
+          'cgpa': cgpa,
+          'semester': semester,
+          'courses': _courses,
         });
       } else {
-        // If user data doesn't exist, add new user data to Firestore
-        await _saveUserData();
+        print('Name and College cannot be empty. Please fill in the details.');
       }
-    } catch (e) {
-      // Handle timeout or other errors
-      print('Error loading user data: $e');
     }
   }
-}
-
-
-  // Modified _saveUserData to ensure it's called at an appropriate time
-Future<void> _saveUserData() async {
-  // Save user data to Firestore
-  User? user = _auth.currentUser;
-  if (user != null) {
-    // Check if the text controllers contain valid data before saving
-    String name = _nameController.text.trim();
-    String college = _collegeController.text.trim();
-    double cgpa = double.tryParse(_cgpaController.text.trim()) ?? 0.0;
-    int semester = int.tryParse(_semesterController.text.trim()) ?? 0;
-
-    if (name.isNotEmpty && college.isNotEmpty) {
-      // Save data only if name and college are not empty
-      await _firestore.collection('users').doc(user.uid).set({
-        'name': name,
-        'college': college,
-        'cgpa': cgpa,
-        'semester': semester,
-        'courses': _courses,
-      });
-    } else {
-      // Show a message or handle the case where name or college is empty
-      print('Name and College cannot be empty. Please fill in the details.');
-    }
-  }
-}
-
-// Example of calling _saveUserData when a "Save" button is pressed
-
 
   Future<double> _getPredictedScore(String course) async {
     try {
-      // Make HTTP POST request to send course to the backend for prediction
       final response = await http.post(
         Uri.parse('http://127.0.0.1:5000/predict'),
         headers: {
-          'Content-Type': 'application/json', // Set Content-Type header
+          'Content-Type': 'application/json',
         },
-        body: json.encode({'course': course}), // Encode request body as JSON
+        body: json.encode({'course': course}),
       );
 
       if (response.statusCode == 200) {
-        // Parse the response body to get the predicted score
         final Map<String, dynamic> data = json.decode(response.body);
         final double predictedScore = data['predicted_score'];
-        return predictedScore.toDouble(); // Convert predictedScore to double
+        return predictedScore.toDouble();
       } else {
-        // Handle errors
         print('Failed to fetch predicted score: ${response.reasonPhrase}');
-        return 0.0; // Return a default value or handle the error accordingly
+        return 0.0;
       }
     } catch (e) {
-      // Handle network errors or other exceptions
       print('Error predicting score: $e');
-      return 0.0; // Return a default value or handle the error accordingly
+      return 0.0;
     }
   }
 
   void _calculateTotalScore() async {
     double total = 0.0;
     if (_courses.isNotEmpty) {
-      // Calculate the total score for courses
       for (var course in _courses) {
         double predictedScore = await _getPredictedScore(course);
         total += predictedScore;
       }
-      // Add half of the total score for courses to half of the CGPA
-      total = (total * 0.5) + ((double.tryParse(_cgpaController.text) ?? 0.0) * 0.5);
+      total = (total * 0.5) +
+          ((double.tryParse(_cgpaController.text) ?? 0.0) * 0.5);
     } else {
-      // If no courses are entered, only consider the CGPA
       total = (double.tryParse(_cgpaController.text) ?? 0.0) * 0.5;
     }
     setState(() {
-      _totalScore = total.clamp(0.0, 9.9); // Clamp total score to maximum 9.9
+      _totalScore = total.clamp(0.0, 9.9);
     });
   }
 
   Future<void> _addCourse(String name) async {
     try {
-      // Call _getPredictedScore() to get the predicted score for the course
       double predictedScore = await _getPredictedScore(name);
-      // ignore: unnecessary_null_comparison
       if (predictedScore != null) {
         setState(() {
           _courses.add(name);
@@ -145,7 +134,6 @@ Future<void> _saveUserData() async {
         });
       }
     } catch (e) {
-      // Handle errors
       print('Error adding course: $e');
     }
   }
@@ -158,14 +146,17 @@ Future<void> _saveUserData() async {
   }
 
   String _getCircleText() {
-    if (_cgpaController.text.isNotEmpty && double.parse(_cgpaController.text) < 6.0) {
+    if (_cgpaController.text.isNotEmpty &&
+        (double.tryParse(_cgpaController.text) == null ||
+            double.parse(_cgpaController.text) < 6 ||
+            double.parse(_cgpaController.text) > 10)) {
       return 'NA';
     } else {
       return _totalScore.toStringAsFixed(2);
     }
   }
 
-   @override
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
@@ -173,8 +164,9 @@ Future<void> _saveUserData() async {
         actions: [
           IconButton(
             icon: Icon(Icons.logout),
+            tooltip: 'Logout',
             onPressed: () {
-              _signOut(); // Call the sign out function when the button is pressed
+              _signOut();
             },
           ),
         ],
@@ -186,13 +178,15 @@ Future<void> _saveUserData() async {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                height: 200, // Set a fixed height for the container
-                color: Colors.grey,
-                child: Center(
-                  child: Image.asset('assets/1.jpg'),
+                height: 200,
+                decoration: BoxDecoration(
+                  image: DecorationImage(
+                    image: AssetImage('assets/1.jpg'),
+                    fit: BoxFit.cover,
+                  ),
+                  borderRadius: BorderRadius.circular(10.0),
                 ),
               ),
-              
               SizedBox(height: 20),
               Container(
                 width: 150,
@@ -229,7 +223,14 @@ Future<void> _saveUserData() async {
                           controller: _nameController,
                           decoration: InputDecoration(
                             hintText: 'Enter your name',
+                            errorText: _nameError ? 'Enter text without numbers' : null,
                           ),
+                          onChanged: (_) {
+                            setState(() {
+                              _nameError = _nameController.text.isNotEmpty &&
+                                  _nameController.text.contains(RegExp(r'[0-9]'));
+                            });
+                          },
                         ),
                         SizedBox(height: 10),
                         Text('College:'),
@@ -238,7 +239,14 @@ Future<void> _saveUserData() async {
                           controller: _collegeController,
                           decoration: InputDecoration(
                             hintText: 'Enter your college',
+                            errorText: _collegeError ? 'Enter text without numbers' : null,
                           ),
+                          onChanged: (_) {
+                            setState(() {
+                              _collegeError = _collegeController.text.isNotEmpty &&
+                                  _collegeController.text.contains(RegExp(r'[0-9]'));
+                            });
+                          },
                         ),
                         SizedBox(height: 10),
                         Text('CGPA:'),
@@ -248,8 +256,16 @@ Future<void> _saveUserData() async {
                           keyboardType: TextInputType.numberWithOptions(decimal: true),
                           decoration: InputDecoration(
                             hintText: 'Enter your CGPA',
+                            errorText: _cgpaError ? 'Enter a valid CGPA (0 to 10)' : null,
                           ),
-                          onChanged: (_) => _calculateTotalScore(),
+                          onChanged: (_) {
+                            setState(() {
+                              _cgpaError = _cgpaController.text.isNotEmpty &&
+                                  !RegExp(r'^\d*\.?\d*$').hasMatch(
+                                      _cgpaController.text.trim());
+                            });
+                            _calculateTotalScore();
+                          },
                         ),
                         SizedBox(height: 10),
                         Text('Semester:'),
@@ -259,7 +275,15 @@ Future<void> _saveUserData() async {
                           keyboardType: TextInputType.number,
                           decoration: InputDecoration(
                             hintText: 'Enter your semester',
+                            errorText: _semesterError ? 'Enter digits only' : null,
                           ),
+                          onChanged: (_) {
+                            setState(() {
+                              _semesterError = _semesterController.text.isNotEmpty &&
+                                  !RegExp(r'^\d*$').hasMatch(
+                                      _semesterController.text.trim());
+                            });
+                          },
                         ),
                       ],
                     ),
@@ -270,7 +294,13 @@ Future<void> _saveUserData() async {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Courses:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        Text(
+                          'Courses:',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                         SizedBox(height: 10),
                         Row(
                           children: [
@@ -285,12 +315,16 @@ Future<void> _saveUserData() async {
                             SizedBox(width: 10),
                             ElevatedButton(
                               onPressed: () {
-                                String courseName = _courseController.text.trim();
+                                String courseName =
+                                    _courseController.text.trim();
                                 if (courseName.isNotEmpty) {
                                   _addCourse(courseName);
                                 } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                    content: Text('Please enter a course name.'),
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(SnackBar(
+                                    content: Text(
+                                      'Please enter a course name.',
+                                    ),
                                   ));
                                 }
                                 _courseController.clear();
@@ -325,27 +359,36 @@ Future<void> _saveUserData() async {
                 ],
               ),
               ElevatedButton(
-                  onPressed: () {
-                    // Call _saveUserData when the user interacts with the "Save" button
+                onPressed: () {
+                  setState(() {
+                    _nameError = _nameController.text.isNotEmpty &&
+                        _nameController.text.contains(RegExp(r'[0-9]'));
+                    _collegeError = _collegeController.text.isNotEmpty &&
+                        _collegeController.text.contains(RegExp(r'[0-9]'));
+                    _cgpaError = _cgpaController.text.isNotEmpty &&
+                        !RegExp(r'^\d*\.?\d*$').hasMatch(
+                            _cgpaController.text.trim());
+                    _semesterError =
+                        _semesterController.text.isNotEmpty &&
+                            !RegExp(r'^\d*$').hasMatch(
+                                _semesterController.text.trim());
+                  });
+                  if (!_nameError &&
+                      !_collegeError &&
+                      !_cgpaError &&
+                      !_semesterError) {
                     _saveUserData();
-                  },
-                  child: Text('Save'),
-                ),
+                  }
+                },
+                child: Text('Save'),
+              ),
             ],
           ),
         ),
       ),
     );
   }
-Future<void> _signOut() async {
-    try {
-      await FirebaseAuth.instance.signOut();
-      // Navigate to the login page or any other page you desire after signing out
-      Navigator.of(context).pop(); // Navigate back to the previous screen
-    } catch (e) {
-      print('Error signing out: $e');
-    }
-  }
+
   Color _getCircleColor() {
     if (_totalScore >= 9.0) {
       return Colors.green;
@@ -353,6 +396,15 @@ Future<void> _signOut() async {
       return Colors.yellow;
     } else {
       return Colors.red;
+    }
+  }
+
+  Future<void> _signOut() async {
+    try {
+      await FirebaseAuth.instance.signOut();
+      Navigator.of(context).pop();
+    } catch (e) {
+      print('Error signing out: $e');
     }
   }
 }

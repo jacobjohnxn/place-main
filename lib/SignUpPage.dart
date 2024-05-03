@@ -14,11 +14,23 @@ class _SignUpPageState extends State<SignUpPage> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  
+  bool _emailError = false; // Define _emailError variable to track email format validity
 
   Future<void> _signUp() async {
     try {
       final String email = _emailController.text.trim();
       final String password = _passwordController.text.trim();
+
+      // Validate the email format
+      bool isValidEmail = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
+      
+      if (!isValidEmail) {
+        setState(() {
+          _emailError = true;
+        });
+        return; // Exit signUp function if email is not valid
+      }
 
       // Create user with email and password
       await FirebaseAuth.instance.createUserWithEmailAndPassword(
@@ -57,18 +69,32 @@ class _SignUpPageState extends State<SignUpPage> {
             TextField(
               controller: _emailController,
               keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(
+              onChanged: (value) {
+                setState(() {
+                  // Reset the error state when user changes the email
+                  _emailError = false;
+                });
+              },
+              decoration: InputDecoration(
                 labelText: 'Email',
+                errorText: _emailError ? 'Enter a valid email' : null,
               ),
             ),
             const SizedBox(height: 12.0),
             TextField(
-              controller: _passwordController,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Password',
-              ),
+            controller: _passwordController,
+            obscureText: true,
+            onChanged: (_) {
+              setState(() {}); // Trigger rebuild when password changes
+            },
+            decoration: InputDecoration(
+              labelText: 'Password',
+              errorText: _passwordController.text.isNotEmpty && _passwordController.text.length < 6
+                  ? 'Password should be at least 6 characters'
+                  : null,
             ),
+          ),
+
             const SizedBox(height: 20.0),
             ElevatedButton(
               onPressed: _signUp, // Call _signUp function when the button is pressed
